@@ -95,7 +95,7 @@ agent/
 ├── commands.py       # slash-command registry + dispatcher (@register decorator)
 ├── config.py         # .env loading, validation, LiteLLM completion kwargs
 └── ui.py             # StreamRenderer (live display), status formatting, errors
-pyproject.toml        # build config, deps + entry point (agent-os-cli)
+pyproject.toml        # build config, deps + entry point (miniclaude-tui)
 .env.example          # configuration template with provider examples
 ```
 
