@@ -1,6 +1,6 @@
-# Agent OS TUI — Claude-Code-Style Terminal Chat Agent
+# MiniClaude TUI — Claude-Code-Style Terminal Chat Agent
 
-A full-screen Python TUI that visually mimics Claude Code's terminal UI: animated welcome banner, live status bar, streaming responses with a spinner animation, persistent command history, and token-aware context tracking — all powered by [LiteLLM](https://github.com/BerriAI/litellm).
+A full-screen Python TUI that visually mimics Claude Code's terminal UI style with: animated welcome banner, live status bar, streaming responses with a spinner animation, persistent command history, and token-aware context tracking — all powered by [LiteLLM](https://github.com/BerriAI/litellm).
 
 ## Quickstart
 
@@ -22,7 +22,7 @@ cp .env.example .env
 agent-os-cli
 ```
 
-![AgentOS TUI](images/tui.png)
+![MiniClaude TUI](images/tui.png)
 
 ## Configuration (`.env`)
 

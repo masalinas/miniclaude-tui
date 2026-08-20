@@ -212,7 +212,7 @@ def create_header():
     return Frame(
         body=body,
         # Passing FormattedText / HTML left-aligns the title and allows inline colors
-        title=HTML(f'<b>AgentOS</b> <style fg="#a0a0a0">v{get_app_version()}</style>'),
+        title=HTML(f'<b>MiniClaude</b> <style fg="#a0a0a0">v{get_app_version()}</style>'),
     )
 
 header_bar = create_header()
