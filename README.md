@@ -6,7 +6,7 @@ A full-screen Python TUI that visually mimics Claude Code's terminal UI style wi
 
 ```bash
 # 1. Clone and enter the project
-git clone <repo> && cd agent-os-cli
+git clone <repo> && cd miniclaude-tui
 
 # 2. Create a virtual environment
 python3 -m venv .venv && source .venv/bin/activate
@@ -19,7 +19,7 @@ cp .env.example .env
 # Edit .env — at minimum set MODEL and API_KEY
 
 # 5. Run
-agent-os-cli
+miniclaude-tui
 ```
 
 ![MiniClaude TUI](images/tui.png)
