@@ -121,6 +121,3 @@ def my_handler(args: str, state: dict) -> bool | None:
 ```
 
 The command immediately appears in `/help` and Tab completion — no restart needed.
-
-## Prompting
-In the `PROMPT.md` you can see the initial prompt used with claude code to initialize the TUI
