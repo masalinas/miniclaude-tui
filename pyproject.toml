@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-os-cli"
+version = "1.1.0"
+description = "Agent-OS CLI chat agent"
+requires-python = ">=3.11"
+dependencies = [
+    "prompt_toolkit>=3.0,<4",
+    "python-dotenv>=1.0,<2",
+    "litellm>=1.50",
+]
+
+[project.scripts]
+agent-os-cli = "agent.cli:main"
+
+# Explicitly configure setuptools to include only 'agent'
+[tool.setuptools.packages.find]
+include = ["agent*"]
