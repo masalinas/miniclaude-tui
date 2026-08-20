@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "miniclaude-tui"
 version = "1.1.0"
-description = "MiniClaude TUI chatbox"
+description = "MiniClaude TUI Chatbox"
 requires-python = ">=3.11"
 dependencies = [
     "prompt_toolkit>=3.0,<4",
