@@ -12,12 +12,8 @@ over the prompt row without disturbing the HSplit sizing.
 
 from __future__ import annotations
 
-from asyncio import subprocess
-import base64
-from logging import log
 import os
 import shutil
-import sys
 import time
 import re
 import contextlib
@@ -26,6 +22,7 @@ import tomllib
 from pathlib import Path
 from itertools import cycle
 import asyncio
+from asyncio import subprocess
 
 import pyperclip
 
@@ -59,6 +56,13 @@ TIMING_COLOR = f"fg:{MAIN_COLOR}"
 
 TIMING_PATTERN = re.compile(r"Thought for|Crunched for")
 
+EDGE_MARGIN = 2          # rows from top/bottom that trigger auto-scroll
+EDGE_SCROLL_INTERVAL = 0.08
+EDGE_SCROLL_STEP = 2
+
+_drag_active = False
+_edge_scroll_task: asyncio.Task | None = None
+
 _copy_status_text = ""
 _copy_status_task: asyncio.Task | None = None
 
@@ -79,7 +83,6 @@ version = get_app_version()
 # ---------------------------------------------------------------------------
 # Tab-completer for slash commands
 # ---------------------------------------------------------------------------
-
 class SlashCompleter(Completer):
     """Complete registered commands when the user types ``/``."""
 
@@ -97,11 +100,9 @@ class SlashCompleter(Completer):
                     display_meta=f"{name} — {desc}",
                 )
 
-
 # ---------------------------------------------------------------------------
 # Shared state (config, conversation, ctrl-c hint)
 # ---------------------------------------------------------------------------
-
 cfg = Config.from_env()
 messages: list[dict[str, str]] = []
 cmd_state: dict
@@ -125,13 +126,11 @@ _session_tokens: dict[str, int] = {
     "thinking": 0,
 }
 
-
 # ---------------------------------------------------------------------------
 # Top status bar — a real full-width Window (like the bottom bar), not text
 # baked into header_field. Fixes it looking like a truncated/cut-off rule
 # on wide terminals.
 # ---------------------------------------------------------------------------
-
 class LoopColorAppLexer(Lexer):
     def lex_document(self, document):
         def get_line(lineno):
@@ -226,6 +225,9 @@ def create_header():
         title=HTML(f'<b>AgentOS</b> <style fg="#a0a0a0">v{get_app_version()}</style>'),
     )
 
+# ---------------------------------------------------------------------------
+# Copy to clipboard helpers
+# ---------------------------------------------------------------------------
 def _copy_to_system_clipboard(text: str) -> bool:
     """Try a real clipboard tool first (subprocess return code tells us
     definitively whether it worked). Fall back to OSC 52 only if no
@@ -263,19 +265,67 @@ def _set_copy_status(text: str) -> None:
         )
     app.invalidate()
 
+def _stop_edge_scroll() -> None:
+    global _edge_scroll_task
+
+    if _edge_scroll_task is not None:
+        _edge_scroll_task.cancel()
+        _edge_scroll_task = None
+
+def _start_edge_scroll(direction: int) -> None:
+    """direction: -1 to scroll up, +1 to scroll down. No-op if already running."""
+    global _edge_scroll_task
+
+    if _edge_scroll_task is not None:
+        return
+
+    async def _run() -> None:
+        try:
+            while True:
+                w = header_field.window
+                if direction < 0:
+                    w.vertical_scroll = max(0, w.vertical_scroll - EDGE_SCROLL_STEP)
+                else:
+                    w.vertical_scroll += EDGE_SCROLL_STEP
+                app.invalidate()
+                await asyncio.sleep(EDGE_SCROLL_INTERVAL)
+        except asyncio.CancelledError:
+            pass
+
+    _edge_scroll_task = asyncio.create_task(_run())
+
 def _wrap_copy_on_release(control):
-    """Wrap a BufferControl's mouse_handler so releasing the mouse after a
-    drag-select copies the selection to the system clipboard and reports
-    the character count in the bottom bar."""
     original_handler = control.mouse_handler
 
     def handler(mouse_event):
-        result = original_handler(mouse_event)
+        global _drag_active
 
-        if mouse_event.event_type == MouseEventType.MOUSE_UP:
+        result = original_handler(mouse_event)  # let selection extend normally first
+        et = mouse_event.event_type
+
+        if et == MouseEventType.MOUSE_DOWN:
+            _drag_active = True
+
+            _stop_edge_scroll()
+        elif et == MouseEventType.MOUSE_MOVE and _drag_active:
+            info = header_field.window.render_info
+            if info is not None:
+                y = mouse_event.position.y
+                height = info.window_height
+
+                if y <= EDGE_MARGIN:
+                    _start_edge_scroll(-1)
+                elif y >= height - EDGE_MARGIN:
+                    _start_edge_scroll(1)
+                else:
+                    _stop_edge_scroll()
+        elif et == MouseEventType.MOUSE_UP:
+            _drag_active = False
+            _stop_edge_scroll()
+
             buf = control.buffer
             if buf.selection_state is not None:
-                data = buf.copy_selection()  # also clears the visual selection
+                data = buf.copy_selection()
                 text = data.text
                 if text:
                     _set_copy_status(text)
@@ -299,11 +349,9 @@ header_field = TextArea(
 
 _wrap_copy_on_release(header_field.control)
 
-
 # ---------------------------------------------------------------------------
 # Output helpers (thread-safe: schedule onto the app's own event loop)
 # ---------------------------------------------------------------------------
-
 def _append_output(text: str) -> None:
     """Append text to the scrollback pane and scroll it into view."""
     buf = header_field.buffer
@@ -319,10 +367,8 @@ def _append_output(text: str) -> None:
 
     app.invalidate()
 
-
 def _append_output_threadsafe(text: str, loop: asyncio.AbstractEventLoop) -> None:
     loop.call_soon_threadsafe(_append_output, text)
-
 
 def _reset_pane() -> None:
     """Clear the scrollback pane and reset conversation history."""
@@ -337,7 +383,6 @@ def _reset_pane() -> None:
     _session_tokens["thinking"] = 0
     app.invalidate()
 
-
 # Populate the mutable session state dict shared with command handlers.
 cmd_state = {
     "messages": messages,
@@ -347,11 +392,9 @@ cmd_state = {
     "_tokens": _session_tokens,
 }
 
-
 # ---------------------------------------------------------------------------
 # Streaming via LiteLLM SDK (blocking generator run off the UI thread)
 # ---------------------------------------------------------------------------
-
 def _run_stream_worker(
     msgs: list[dict[str, str]],
     renderer: StreamRenderer,
@@ -427,7 +470,6 @@ def _run_stream_worker(
         elif hasattr(response, "_http_session") and response._http_session:
             response._http_session.close()
 
-
 def _estimate_tokens(msgs: list[dict[str, str]]) -> dict[str, int]:
     """Fallback token estimator when the streaming API returns no usage.
 
@@ -462,7 +504,6 @@ def _estimate_tokens(msgs: list[dict[str, str]]) -> dict[str, int]:
         "completion": completion_tokens,
         "thinking": 0,
     }
-
 
 async def _handle_turn(text: str) -> None:
     global _current_turn_task, _cancel_event
@@ -548,11 +589,9 @@ async def _handle_turn(text: str) -> None:
     # Reset per-turn tracking so it's fresh for the next turn.
     _turn_usage.clear()
 
-
 # ---------------------------------------------------------------------------
 # Command dispatch / input submission
 # ---------------------------------------------------------------------------
-
 def _print_help() -> str:
     lines = ["\nAvailable commands:"]
     for name, desc in list_commands():
@@ -566,7 +605,6 @@ def _print_help() -> str:
         "\n",
     ]
     return "\n".join(lines)
-
 
 def _on_submit(buff) -> None:
     """Buffer accept_handler — MUST be passed into TextArea's constructor
@@ -602,7 +640,6 @@ def _on_submit(buff) -> None:
 
     _current_turn_task = asyncio.create_task(_handle_turn(text))
 
-
 history_path = Path.home() / ".cache" / "agent_cli" / "history.txt"
 history_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -626,7 +663,6 @@ prompt_field = TextArea(
                                  #     can't balloon to a fixed max full of
                                  #     blank lines.
 )
-
 
 def _bottom_bar_text():
     # 1. Retrieve current terminal width dynamically
@@ -654,20 +690,16 @@ def _bottom_bar_text():
 
     return HTML(f'<style bg="#262626" fg="#8a8a8a">{full_text}</style>')
 
-
 bottom_window = Window(
     height=1,
     content=FormattedTextControl(_bottom_bar_text),
     style="class:status-bar",
 )
 
-
 # ---------------------------------------------------------------------------
 # Key bindings
 # ---------------------------------------------------------------------------
-
 kb = KeyBindings()
-
 
 @kb.add("enter", filter=has_focus(prompt_field), eager=True)
 def _enter(event):
@@ -726,11 +758,9 @@ def _cancel(event):
 def _exit(event):
     event.app.exit()
 
-
 # ---------------------------------------------------------------------------
 # Layout / Application
 # ---------------------------------------------------------------------------
-
 root_container = FloatContainer(
     content=HSplit(
         [
@@ -777,10 +807,8 @@ app = Application(
     mouse_support=True,
 )
 
-
 def main() -> None:
     app.run()
-
 
 if __name__ == "__main__":
     main()
