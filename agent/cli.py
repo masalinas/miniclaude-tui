@@ -12,7 +12,12 @@ over the prompt row without disturbing the HSplit sizing.
 
 from __future__ import annotations
 
+from asyncio import subprocess
+import base64
+from logging import log
 import os
+import shutil
+import sys
 import time
 import re
 import contextlib
@@ -21,6 +26,8 @@ import tomllib
 from pathlib import Path
 from itertools import cycle
 import asyncio
+
+import pyperclip
 
 from prompt_toolkit.application import Application, get_app
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
@@ -32,6 +39,7 @@ from prompt_toolkit.layout.containers import Float, FloatContainer, HSplit, VSpl
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.layout.menus import CompletionsMenu
+from prompt_toolkit.mouse_events import MouseEventType
 from prompt_toolkit.styles import Style
 from prompt_toolkit.widgets import Frame, TextArea, VerticalLine
 from prompt_toolkit.document import Document
@@ -50,6 +58,9 @@ LOOP_COLOR = f"fg:{MAIN_COLOR}"
 TIMING_COLOR = f"fg:{MAIN_COLOR}"
 
 TIMING_PATTERN = re.compile(r"Thought for|Crunched for")
+
+_copy_status_text = ""
+_copy_status_task: asyncio.Task | None = None
 
 def get_app_version() -> str:
     """Reads the project version from pyproject.toml."""
@@ -185,8 +196,8 @@ def create_header():
     news_window = Window(
         content=FormattedTextControl([
             ("class:section-title", "What's new\n"),
-            ("class:body-text", "Fixed prompt caching for active agent sessions\n"),
-            ("class:body-text", "Added local system context retrieval integration\n"),
+            ("class:body-text", "Fixed messages selected\n"),
+            ("class:body-text", "Add clipboard copy/paste integration\n"),
             ("class:sub-link", "/help for more"),
         ]),
         dont_extend_height=True,
@@ -212,8 +223,66 @@ def create_header():
     return Frame(
         body=body,
         # Passing FormattedText / HTML left-aligns the title and allows inline colors
-        title=HTML(f'<b>MiniClaude</b> <style fg="#a0a0a0">v{get_app_version()}</style>'),
+        title=HTML(f'<b>AgentOS</b> <style fg="#a0a0a0">v{get_app_version()}</style>'),
     )
+
+def _copy_to_system_clipboard(text: str) -> bool:
+    """Try a real clipboard tool first (subprocess return code tells us
+    definitively whether it worked). Fall back to OSC 52 only if no
+    tool is installed — and even then, treat it as unverified, since
+    the terminal never confirms whether it honored the sequence."""
+    candidates = [
+        ["wl-copy"],
+        ["xclip", "-selection", "clipboard"],
+        ["xsel", "--clipboard", "--input"],
+        ["pbcopy"],
+    ]
+
+    for cmd in candidates:
+        if not shutil.which(cmd[0]):
+            continue
+        try:
+            subprocess.run(cmd, input=text.encode("utf-8"), check=True)
+            return True
+        except Exception:
+            continue
+
+    pyperclip.copy(text)
+
+    return False  # report "unverified" rather than claiming success
+
+def _set_copy_status(text: str) -> None:
+    global _copy_status_text, _copy_status_task
+
+    ok = _copy_to_system_clipboard(text)
+    if ok:
+        _copy_status_text = f"Copied {len(text)} characters to clipboard"
+    else:
+        _copy_status_text = (
+            f"Selected {len(text)} chars."
+        )
+    app.invalidate()
+
+def _wrap_copy_on_release(control):
+    """Wrap a BufferControl's mouse_handler so releasing the mouse after a
+    drag-select copies the selection to the system clipboard and reports
+    the character count in the bottom bar."""
+    original_handler = control.mouse_handler
+
+    def handler(mouse_event):
+        result = original_handler(mouse_event)
+
+        if mouse_event.event_type == MouseEventType.MOUSE_UP:
+            buf = control.buffer
+            if buf.selection_state is not None:
+                data = buf.copy_selection()  # also clears the visual selection
+                text = data.text
+                if text:
+                    _set_copy_status(text)
+
+        return result
+
+    control.mouse_handler = handler
 
 header_bar = create_header()
 
@@ -222,11 +291,13 @@ header_field = TextArea(
     read_only=True,
     scrollbar=True,
     wrap_lines=True,
-    focusable=False,
+    focus_on_click=True,
     lexer=LoopColorAppLexer(),
     # dont_extend_height left at its default (False): this is the ONE pane
     # that should claim leftover vertical space and fill the screen.
 )
+
+_wrap_copy_on_release(header_field.control)
 
 
 # ---------------------------------------------------------------------------
@@ -237,12 +308,15 @@ def _append_output(text: str) -> None:
     """Append text to the scrollback pane and scroll it into view."""
     buf = header_field.buffer
     new_text = buf.text + text
-    
+    sel = buf.selection_state
+
     # set_document lets you update text and cursor position simultaneously
     buf.set_document(
         Document(new_text, cursor_position=len(new_text)),
         bypass_readonly=True
     )
+    buf.selection_state = sel
+
     app.invalidate()
 
 
@@ -540,7 +614,7 @@ white_separator = Window(
 
 prompt_field = TextArea(
     prompt=HTML('<b>❯</b> '),
-    focus_on_click=False,  # prevent mouse click from stealing focus → wheel scrolls header_field instead
+    focus_on_click=True,
     multiline=True,
     wrap_lines=True,
     completer=SlashCompleter(),
@@ -567,6 +641,11 @@ def _bottom_bar_text():
         spaces_needed = max(0, width - len(text))
         full_text = text + (" " * spaces_needed)
         return HTML(f'<style bg="#262626" fg="#d78700">{full_text}</style>')
+
+    if _copy_status_text:
+        spaces_needed = max(0, width - len(_copy_status_text))
+        full_text = _copy_status_text + (" " * spaces_needed)
+        return HTML(f'<style bg="#262626" fg="#5fd75f">{full_text}</style>')
 
     # 3. Handle default status bar state
     base_text = "[Enter] Submit  ·  [\\ + Enter] Newline  ·  [Ctrl+C] Exit  ·  "
