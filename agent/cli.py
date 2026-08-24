@@ -142,16 +142,6 @@ class LoopColorAppLexer(Lexer):
                 return [(TIMING_COLOR, line)]
             return [("", line)]
         return get_line
-    
-def get_welcome_content():
-    """Generates the inner body content inside the boxed banner."""
-    # Left side content or simple centered welcome text
-    line = format_status_line(cfg.model, cfg.effort, os.getcwd())
-    
-    return FormattedTextControl([
-        ("class:banner-welcome", "Welcome back!\n\n"),
-        ("class:banner-sub", f"{line}\n"),
-    ])
 
 def _get_short_cwd(path: str) -> str:
     home = os.path.expanduser("~")
