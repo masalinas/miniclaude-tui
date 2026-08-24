@@ -795,6 +795,9 @@ style = Style.from_dict({
     "sub-link": "italic #a0a0a0",
 })
 
+# ---------------------------------------------------------------------------
+# Main Application
+# ---------------------------------------------------------------------------
 app = Application(
     layout=layout,
     key_bindings=kb,
