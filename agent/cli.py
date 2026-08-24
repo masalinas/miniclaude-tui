@@ -187,11 +187,9 @@ def create_header():
 
     # Right Column: Horizontal rule
     rule_window = Window(
-        content=FormattedTextControl(
-            text=lambda: [("class:frame.border", "─" * 1000)]
-        ),
-        height=1,
-        dont_extend_width=False,
+        char="─",
+        style="class:frame.border",
+        height=1
     )
 
     # Right Column: Lower section (What's new)
