@@ -785,6 +785,9 @@ root_container = FloatContainer(
 
 layout = Layout(root_container, focused_element=prompt_field)
 
+# ---------------------------------------------------------------------------
+# Styles / Application
+# ---------------------------------------------------------------------------
 style = Style.from_dict({
     "frame.border": f"{MAIN_COLOR}",       # Outer frame borders
     "frame.label": f"bold {MAIN_COLOR}",    # Top border title
