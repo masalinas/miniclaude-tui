@@ -1,10 +1,12 @@
 """Main REPL — full-screen Application with a pinned bottom prompt.
 
 Layout (top to bottom, via HSplit):
-    header_bar     -- 1-row full-width status bar (model / effort / cwd)
-    header_field   -- scrollable, read-only output/history pane (fills space)
-    prompt_field   -- the "> " input row, grows with actual typed content
-    bottom_window  -- 1-row status/hint bar, always the last row
+    header_bar      -- 1-row full-width status bar (model / effort / cwd)
+    header_field    -- scrollable, read-only output/history pane (fills space)
+    white_separator -- a white separator line
+    prompt_field    -- the "> " input row, grows with actual typed content
+    white_separator -- a white separator line
+    bottom_window   -- 1-row status/hint bar, always the last row
 
 Wrapped in a FloatContainer so the slash-command CompletionsMenu can float
 over the prompt row without disturbing the HSplit sizing.
