@@ -648,8 +648,9 @@ history_path.parent.mkdir(parents=True, exist_ok=True)
 
 # White separator lines around the prompt
 white_separator = Window(
-    content=FormattedTextControl([("fg:#ffffff", "─" * 200)]),
-    height=1,
+    char="─",
+    style="fg:#ffffff",
+    height=1
 )
 
 prompt_field = TextArea(
