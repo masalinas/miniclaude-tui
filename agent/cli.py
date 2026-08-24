@@ -644,13 +644,6 @@ def _on_submit(buff) -> None:
 history_path = Path.home() / ".cache" / "agent_cli" / "history.txt"
 history_path.parent.mkdir(parents=True, exist_ok=True)
 
-# White separator lines around the prompt
-white_separator = Window(
-    char="─",
-    style="fg:#ffffff",
-    height=1
-)
-
 prompt_field = TextArea(
     prompt=HTML('<b>❯</b> '),
     focus_on_click=True,
@@ -664,6 +657,13 @@ prompt_field = TextArea(
                                  #     claims leftover screen space, so it
                                  #     can't balloon to a fixed max full of
                                  #     blank lines.
+)
+
+# White separator lines around the prompt
+white_separator = Window(
+    char="─",
+    style="fg:#ffffff",
+    height=1
 )
 
 def _bottom_bar_text():
