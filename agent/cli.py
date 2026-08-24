@@ -132,17 +132,6 @@ _session_tokens: dict[str, int] = {
 # baked into header_field. Fixes it looking like a truncated/cut-off rule
 # on wide terminals.
 # ---------------------------------------------------------------------------
-class LoopColorAppLexer(Lexer):
-    def lex_document(self, document):
-        def get_line(lineno):
-            line = document.lines[lineno]
-            if "Loop running" in line:
-                return [(LOOP_COLOR, line)]
-            if TIMING_PATTERN.search(line):
-                return [(TIMING_COLOR, line)]
-            return [("", line)]
-        return get_line
-
 def _get_short_cwd(path: str) -> str:
     home = os.path.expanduser("~")
     return "~" + path[len(home):] if path.startswith(home) else path
@@ -217,9 +206,22 @@ def create_header():
         title=HTML(f'<b>MiniClaude TUI</b> <style fg="#a0a0a0">v{get_app_version()}</style>'),
     )
 
+header_bar = create_header()
+
 # ---------------------------------------------------------------------------
 # Copy to clipboard helpers
 # ---------------------------------------------------------------------------
+class LoopColorAppLexer(Lexer):
+    def lex_document(self, document):
+        def get_line(lineno):
+            line = document.lines[lineno]
+            if "Loop running" in line:
+                return [(LOOP_COLOR, line)]
+            if TIMING_PATTERN.search(line):
+                return [(TIMING_COLOR, line)]
+            return [("", line)]
+        return get_line
+
 def _copy_to_system_clipboard(text: str) -> bool:
     """Try a real clipboard tool first (subprocess return code tells us
     definitively whether it worked). Fall back to OSC 52 only if no
@@ -325,8 +327,6 @@ def _wrap_copy_on_release(control):
         return result
 
     control.mouse_handler = handler
-
-header_bar = create_header()
 
 header_field = TextArea(
     text="Type your prompt below. /help for commands.\n\n",
