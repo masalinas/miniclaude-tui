@@ -48,7 +48,6 @@ from agent.config import Config
 from agent.commands import is_registered, list_commands, run as run_command
 from agent.ui import format_error, StreamRenderer, format_status_line
 
-
 SPINNER_FRAMES = ["✻", "✽", "✾", "✿", "❁"]
 spinner = cycle(SPINNER_FRAMES)
 
