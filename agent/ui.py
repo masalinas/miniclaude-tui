@@ -12,27 +12,16 @@ import time
 
 ICON = "✻"
 
-
-def format_status_block(model: str, effort: str, cwd: str) -> str:
-    """Text for the top of the output pane, shown once at startup."""
-    rule = "─" * 60
-    return f"{rule}\n {ICON} {model} with {effort} effort  ·  cwd: {cwd}\n{rule}\n\n"
-
-
 def format_status_line(model: str, effort: str, cwd: str) -> str:
     """Single-line status text for the full-width header bar Window.
 
-    Unlike ``format_status_block`` (a fixed-width text rule meant for a
-    scrollback pane), this has no baked-in width — the Window it's placed
-    in is styled with a background color and spans the terminal naturally,
-    so it never looks truncated on wide terminals.
+    the Window it's placed in is styled with a background color and spans the 
+    terminal naturally, so it never looks truncated on wide terminals.
     """
     return f"{model} with {effort} effort  ·  cwd: {cwd}"
 
-
 def format_error(message: str) -> str:
     return f"\n⚠  {message}\n\n"
-
 
 class StreamRenderer:
     """Tracks a streaming LLM turn and emits text *deltas* via a callback.
